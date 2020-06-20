@@ -13,8 +13,11 @@ const app = express();
 const secretlySecretValue = 'Gotta catch\'em all!';
 const csrfProtection = csurf({cookie:true});
 
+import {promisify} from 'util'
+const run = (dab:sqlite3.Database) => promisify(dab.run.bind(dab));
+
 // Wykonanie sekwencji instrukcji niebędących selectami, zwracająca pierwszy błąd
-const seqSql = (db:sqlite3.Database, comm:string[], next: ()=>void) => {
+const seqSql = (db:sqlite3.Database, comm:string[], next: ()=>Promise<void>) => {
     if (comm.length < 1) {
         throw new Error("Too little args");
     } else if (comm.length === 1) {
@@ -29,6 +32,16 @@ const seqSql = (db:sqlite3.Database, comm:string[], next: ()=>void) => {
         })
     }
 };
+
+const beginUntilPasses = (db:sqlite3.Database, next:()=>void) => {
+    db.run('BEGIN EXCLUSIVE TRANSACTION', (err) => {
+        if (err) {
+            beginUntilPasses(db, next);
+        } else {
+            next();
+        }
+    })
+}
 
 app.use(cookieParser(secretlySecretValue));
 
@@ -114,7 +127,13 @@ app.get('/', (req, res) => {
             // Trzeba też sprawdzać, czy od utworzenia sesji hasło nie zostało zmienione
             db.all(`SELECT paskey FROM hasla WHERE user = '${req.session.zalogowany.username}'`,
                  [], (err7, rows7) => {
-                if (err7) throw err7;
+                if (err7) {
+                    res.render('error', {
+                        message: 'Internal server error',
+                        csrfToken: req.csrfToken()
+                    });
+                    return;
+                }
 
                 if (rows7[0].paskey !== req.session.zalogowany.paskey) {
                     res.render('logowanie', {error: 'Hasło zostało zmienione'});
@@ -123,12 +142,25 @@ app.get('/', (req, res) => {
                     db.all('SELECT id, name, description FROM quizes ORDER BY id',
                      [], (err2, rows2) => {
 
-                        if (err2) throw(err2);
+                        if (err2) {
+                            res.render('error', {
+                                message: 'Internal server error',
+                                csrfToken: req.csrfToken()
+                            });
+                            return;
+                        }
 
                         db.all(`SELECT DISTINCT quiz_id FROM answers WHERE user = '${req.session.zalogowany.username}' ORDER BY quiz_id`,
                             [], (err3, rows3) => {
 
-                            if (err3) throw err3;
+                            if (err3) {
+                                res.render('error', {
+                                    message: 'Internal server error',
+                                    csrfToken: req.csrfToken()
+                                });
+                                return;
+                            }
+
                             db.close();
 
                             const lista = prepareList(rows2, rows3);
@@ -146,8 +178,7 @@ app.get('/', (req, res) => {
     } catch {
         res.render('error', {
             message: '404 Not Found',
-            csrfToken: req.csrfToken(),
-            count:Object.keys(req.session.views).length
+            csrfToken: req.csrfToken()
         });
     }
 
@@ -167,7 +198,13 @@ app.post('/', (req, res) => {
             db.close();
             res.render('logowanie', {error: 'Invalid username'});
         } else {
-            if (err) throw(err);
+            if (err) {
+                res.render('error', {
+                    message: 'Internal server error',
+                    csrfToken: req.csrfToken()
+                });
+                return;
+            }
 
             // Sprawdzenie, czy hasła się zgadzają
             if (rows[0].pswd === sha.sha3_256(req.body.password)) {
@@ -181,12 +218,24 @@ app.post('/', (req, res) => {
                 db.all('SELECT id, name, description FROM quizes ORDER BY id',
                     [], (err2, rows2) => {
 
-                    if (err2) throw(err2);
+                    if (err2) {
+                        res.render('error', {
+                            message: 'Internal server error',
+                            csrfToken: req.csrfToken()
+                        });
+                        return;
+                    }
 
                     db.all(`SELECT DISTINCT quiz_id FROM answers WHERE user = '${req.session.zalogowany.username}' ORDER BY quiz_id`,
                     [], (err3, rows3) => {
 
-                        if (err3) throw err3;
+                        if (err3) {
+                            res.render('error', {
+                                message: 'Internal server error',
+                                csrfToken: req.csrfToken()
+                            });
+                            return;
+                        }
                         db.close()
 
                         const lista = prepareList(rows2, rows3);
@@ -207,8 +256,7 @@ app.post('/', (req, res) => {
     } catch {
       res.render('error', {
           message: '404 Not Found',
-          csrfToken: req.csrfToken(),
-          count:Object.keys(req.session.views).length
+          csrfToken: req.csrfToken()
         });
     }
   })
@@ -231,7 +279,13 @@ app.get('/chpsw', csrfProtection, (req, res) => {
             db.all(`SELECT paskey FROM hasla WHERE user = '${req.session.zalogowany.username}'`,
                 [], (err7, rows7) => {
 
-                if (err7) throw err7;
+                if (err7) {
+                    res.render('error', {
+                        message: 'Internal server error',
+                        csrfToken: req.csrfToken()
+                    });
+                    return;
+                }
 
                 if (rows7[0].paskey !== req.session.zalogowany.paskey) {
                     res.render('logowanie', {error: 'Hasło zostało zmienione, sesja przerwana'});
@@ -258,15 +312,25 @@ app.post('/chpsw', csrfProtection, (req, res) => {
 
     const db = new sqlite3.Database('baza.db');
 
-    db.run('BEGIN EXCLUSIVE TRANSACTION')
+    db.run('BEGIN EXCLUSIVE TRANSACTION', [], (err)=> {
+        if (err) {
+            res.render('error', {
+                message: 'Internal server error. Password din not change',
+                csrfToken: req.csrfToken()
+            });
+            return;
+        };
 
-    try {
         db.all(`SELECT user, pswd FROM hasla WHERE user = '${req.body.username}'`,
             [], (err, rows) => {
 
             if (err) {
                 db.run('ROLLBACK', () => {
-                    throw(err);
+                    res.render('error', {
+                        message: 'Internal server error. Password din not change',
+                        csrfToken: req.csrfToken()
+                    });
+                    return;
                 });
             } else if (rows.length < 1) {
                 db.run('ROLLBACK', () => {
@@ -305,7 +369,13 @@ app.post('/chpsw', csrfProtection, (req, res) => {
                     [], (err2) => {
                     if (err2) {
                         db.run('ROLLBACK', () => {
-                            throw err2;
+                            {
+                                res.render('error', {
+                                    message: 'Internal server error. Password did not change',
+                                    csrfToken: req.csrfToken()
+                                });
+                                return;
+                            }
                         });
                     } else {
                         db.run('COMMIT', () => {
@@ -320,232 +390,14 @@ app.post('/chpsw', csrfProtection, (req, res) => {
                 });
             }
         });
-    } catch {
-        res.render('zmienhaslo2', {
-            error: 'Internal error',
-            csrfToken: req.csrfToken(),
-            nazwa: req.body.username
-        });
-    }
+    })
 });
 
 // rozpoczęcie/wznowienie quizu
 app.get('/quiz/:quizId', csrfProtection, (req, res) => {
-
-    try {
-        if (!req.session.zalogowany?.username) {
-            res.render('logowanie', {error: ''});
-        } else {
-            sqlite3.verbose();
-
-            const db = new sqlite3.Database('baza.db');
-
-            db.all(`SELECT paskey FROM hasla WHERE user = '${req.session.zalogowany.username}'`,
-                [], (err7, rows7) => {
-
-                if (err7) throw err7;
-
-                if (rows7[0].paskey !== req.session.zalogowany.paskey) {
-                    res.render('logowanie', {error: 'Hasło zostało zmienione'});
-                } else {
-                    const quizcont = new Array(0);
-                    let description:string;
-                    let backgroundurl:string;
-                    let title:string;
-
-                    db.all(`SELECT * FROM times WHERE quiz_id = ${req.params.quizId} AND user = '${req.session.zalogowany.username}'`,
-                        [], (err3, rows3) => {
-
-                        if(err3) throw(err3);
-
-                        if (rows3.length > 0 && rows3[0].stop !== 0) {
-                            res.render('error', {
-                                message: 'Nie można drugi raz w ten sam quiz',
-                                csrfToken: req.csrfToken()
-                            })
-                        } else {
-                            db.all(`SELECT q_id, text, penalty, image FROM questions WHERE quiz_id = ${req.params.quizId}`,
-                                [], (err, rows) => {
-
-                                if (err) throw(err);
-
-                                db.all(`SELECT name, description, backgroundurl FROM quizes WHERE id = ${req.params.quizId}`,
-                                    [], (err2, rows2) => {
-
-                                    if (err2) throw(err2);
-
-                                    title = rows2[0].name;
-                                    description = rows2[0].description;
-                                    backgroundurl = rows2[0].backgroundurl;
-
-                                    for(const {q_id, text, penalty, image} of rows) {
-                                        quizcont.push({
-                                            id: q_id,
-                                            text,
-                                            answer: null,
-                                            penalty,
-                                            image
-                                        })
-                                    }
-
-                                    if (rows3.length === 0) {
-                                        const start = Number(new Date());
-
-                                        db.run('BEGIN EXCLUSIVE TRANSACTION', (err11) => {
-                                            if (err11) throw err11;
-                                            try {
-                                                db.run(`INSERT INTO times VALUES('${req.session.zalogowany.username}', ${req.params.quizId}, ${start}, 0)`,(err12) => {
-                                                    if (err12) throw err12;
-                                                    db.run('COMMIT', () => {
-                                                        db.close();
-                                                        res.render('samquiz', {
-                                                            csrfToken: req.csrfToken(),
-                                                            description, backgroundurl,
-                                                            quiz:JSON.stringify(quizcont),
-                                                            id:req.params.quizId,
-                                                            start:new Date(start).toString().substr(16, 8),
-                                                            title
-                                                        })
-                                                    })
-                                                });
-                                            } catch {
-                                                db.run('ROLLBACK', () => {
-                                                    db.close();
-                                                    res.render('error', {
-                                                        message: 'Database error',
-                                                        csrfToken: req.csrfToken(),
-                                                        user: req.session.zalogowany.username
-                                                    });
-                                                });
-                                            }
-                                        })
-                                    } else {
-                                        res.render('samquiz', {
-                                            csrfToken: req.csrfToken(),
-                                            description, backgroundurl,
-                                            quiz:JSON.stringify(quizcont),
-                                            id:req.params.quizId,
-                                            start:new Date(rows3[0].start).toString().substr(16, 8),
-                                            title
-                                        })
-                                    }
-                                });
-                            });
-                        }
-                    });
-                }
-            });
-        }
-    } catch {
-        res.render('error', {
-            message: '404 Not Found',
-            csrfToken: req.csrfToken(),
-            user: req.session.zalogowany.username
-        });
-    }
-})
-
-// koniec quizu
-app.post('/quiz/:quizId/end', csrfProtection, (req, res) => {
-    try {
-        const now = Number(new Date());
-        let taken: number;
-        let penalty = 0;
-        if (!req.session.zalogowany?.username) {
-            res.render('logowanie', {error: ''});
-        } else {
-            sqlite3.verbose();
-
-            const db = new sqlite3.Database('baza.db');
-
-            db.all(`SELECT paskey FROM hasla WHERE user = '${req.session.zalogowany.username}'`,
-                [], (err7, rows7) => {
-
-                if (err7) throw err7;
-
-                if (rows7[0].paskey !== req.session.zalogowany.paskey) {
-                    res.render('logowanie', {error: 'Hasło zostało zmienione'});
-                } else {
-                    const result = JSON.parse(req.body.result);
-
-                    db.all(`SELECT * FROM times WHERE quiz_id = ${req.params.quizId} AND user = '${req.session.zalogowany.username}'`,
-                        [], (err3, rows3) => {
-
-                        if(err3) throw err3;
-
-                        if (rows3[0].stop !== 0) {
-                            res.render('error', {
-                                message: 'Test already solved',
-                                csrfToken: req.csrfToken(),
-                                user: req.session.zalogowany.username
-                            });
-                        } else {
-                            taken = (now - rows3[0].start) / 1000;
-                            db.all(`SELECT q_id, answer, penalty FROM questions WHERE quiz_id = ${req.params.quizId} ORDER BY q_id`,
-                                [], (err2, rows2) => {
-
-                                if (err2 || rows2.length !== result.length) throw err2;
-
-                                const anses:string[] = [];
-                                for (let j = 0; j < result.length; j++) {
-                                    if (result[j].questionID !== rows2[j].q_id) throw 1;
-
-                                    if (Number(rows2[j].answer) === Number(result[j].answer)) {
-                                        anses.push(
-                                            `INSERT INTO answers VALUES('${req.session.zalogowany.username}',
-                                            ${req.params.quizId}, ${result[j].questionID}, '${result[j].answer}',
-                                            ${result[j].time * taken}, 0)`
-                                        );
-                                    } else {
-                                        anses.push(
-                                            `INSERT INTO answers VALUES('${req.session.zalogowany.username}',
-                                            ${req.params.quizId}, ${result[j].questionID}, '${result[j].answer}',
-                                            ${result[j].time * taken}, ${rows2[j].penalty})`
-                                        );
-                                        penalty += rows2[j].penalty;
-                                    }
-                                }
-
-                                const tryUntil = () => {
-                                    try {
-                                        seqSql(db,
-                                            ['BEGIN EXCLUSIVE TRANSACTION',
-                                            `UPDATE times SET stop = ${now}`].concat(anses).concat([
-                                                `INSERT INTO wholeres VALUES('${req.session.zalogowany.username}', ${req.params.quizId}, ${taken + penalty})`,
-                                                'COMMIT'
-                                            ]), () => {
-                                                db.close();
-                                                res.render('poquizie', {
-                                                    csrfToken: req.csrfToken(),
-                                                    id:req.params.quizId,
-                                                    user: req.session.zalogowany.username,
-                                                    result:req.body.result
-                                                });
-                                            })
-                                    } catch {
-                                        db.run('ROLLBACK', ()=>{tryUntil()});
-                                    }
-                                }
-
-                                tryUntil();
-                            })
-                        }
-                    })
-                }
-            });
-        }
-    } catch {
-        res.render('error', {
-            message: '404 Not Found',
-            csrfToken: req.csrfToken(),
-            user: req.session.zalogowany.username
-        });
-    }
-})
-
-// wejście w statystyki
-app.get('/stats/:quizId/:username', csrfProtection, (req, res) => {
-    try {
+    if (!req.session.zalogowany?.username) {
+        res.render('logowanie', {error: ''});
+    } else {
         sqlite3.verbose();
 
         const db = new sqlite3.Database('baza.db');
@@ -553,7 +405,287 @@ app.get('/stats/:quizId/:username', csrfProtection, (req, res) => {
         db.all(`SELECT paskey FROM hasla WHERE user = '${req.session.zalogowany.username}'`,
             [], (err7, rows7) => {
 
-            if (err7) throw err7;
+            if (err7) {
+                res.render('error', {
+                    message: 'Internal server error',
+                    csrfToken: req.csrfToken()
+                });
+                return;
+            }
+
+            if (rows7[0].paskey !== req.session.zalogowany.paskey) {
+                res.render('logowanie', {error: 'Hasło zostało zmienione'});
+            } else {
+                const quizcont = new Array(0);
+                let description:string;
+                let backgroundurl:string;
+                let title:string;
+
+                db.all(`SELECT * FROM times WHERE quiz_id = ${req.params.quizId} AND user = '${req.session.zalogowany.username}'`,
+                    [], (err3, rows3) => {
+
+                    if(err3) {
+                        res.render('error', {
+                            message: 'Internal server error',
+                            csrfToken: req.csrfToken()
+                        });
+                        return;
+                    }
+
+                    if (rows3.length > 0 && rows3[0].stop !== 0) {
+                        res.render('error', {
+                            message: 'Nie można drugi raz w ten sam quiz',
+                            csrfToken: req.csrfToken()
+                        })
+                    } else {
+                        db.all(`SELECT q_id, text, penalty, image FROM questions WHERE quiz_id = ${req.params.quizId}`,
+                            [], (err, rows) => {
+
+                            if (err) {
+                                res.render('error', {
+                                    message: 'Internal server error',
+                                    csrfToken: req.csrfToken()
+                                });
+                                return;
+                            }
+
+                            if (rows.length === 0) {
+                                res.render('error', {
+                                    message: '404 Not Found',
+                                    csrfToken: req.csrfToken()
+                                });
+                                return;
+                            }
+
+                            db.all(`SELECT name, description, backgroundurl FROM quizes WHERE id = ${req.params.quizId}`,
+                                [], (err2, rows2) => {
+
+                                if (err2) {
+                                    res.render('error', {
+                                        message: 'Internal server error',
+                                        csrfToken: req.csrfToken()
+                                    });
+                                    return;
+                                }
+
+                                title = rows2[0].name;
+                                description = rows2[0].description;
+                                backgroundurl = rows2[0].backgroundurl;
+
+                                for(const {q_id, text, penalty, image} of rows) {
+                                    quizcont.push({
+                                        id: q_id,
+                                        text,
+                                        answer: null,
+                                        penalty,
+                                        image
+                                    })
+                                }
+
+                                if (rows3.length === 0) {
+                                    const start = Number(new Date());
+
+                                    db.run('BEGIN EXCLUSIVE TRANSACTION', (err11) => {
+                                        if (err11) {
+                                            res.render('error', {
+                                                message: 'Internal server error',
+                                                csrfToken: req.csrfToken()
+                                            });
+                                            return;
+                                        }
+                                        try {
+                                            db.run(`INSERT INTO times VALUES('${req.session.zalogowany.username}', ${req.params.quizId}, ${start}, 0)`,(err12) => {
+                                                if (err12) {
+                                                    res.render('error', {
+                                                        message: 'Internal server error',
+                                                        csrfToken: req.csrfToken()
+                                                    });
+                                                    return;
+                                                }
+                                                db.run('COMMIT', () => {
+                                                    db.close();
+                                                    res.render('samquiz', {
+                                                        csrfToken: req.csrfToken(),
+                                                        description, backgroundurl,
+                                                        quiz:JSON.stringify(quizcont),
+                                                        id:req.params.quizId,
+                                                        start:new Date(start).toString().substr(16, 8),
+                                                        title
+                                                    })
+                                                })
+                                            });
+                                        } catch {
+                                            db.run('ROLLBACK', () => {
+                                                db.close();
+                                                res.render('error', {
+                                                    message: 'Database error',
+                                                    csrfToken: req.csrfToken(),
+                                                    user: req.session.zalogowany.username
+                                                });
+                                            });
+                                        }
+                                    })
+                                } else {
+                                    res.render('samquiz', {
+                                        csrfToken: req.csrfToken(),
+                                        description, backgroundurl,
+                                        quiz:JSON.stringify(quizcont),
+                                        id:req.params.quizId,
+                                        start:new Date(rows3[0].start).toString().substr(16, 8),
+                                        title
+                                    })
+                                }
+                            });
+                        });
+                    }
+                });
+            }
+        });
+    }
+})
+
+// koniec quizu
+app.post('/quiz/:quizId/end', csrfProtection, (req, res) => {
+    const now = Number(new Date());
+    let taken: number;
+    let penalty = 0;
+    if (!req.session.zalogowany?.username) {
+        res.render('logowanie', {error: ''});
+    } else {
+        sqlite3.verbose();
+
+        const db = new sqlite3.Database('baza.db');
+
+        db.all(`SELECT paskey FROM hasla WHERE user = '${req.session.zalogowany.username}'`,
+            [], (err7, rows7) => {
+
+            if (err7) {
+                res.render('error', {
+                    message: 'Internal server error',
+                    csrfToken: req.csrfToken()
+                });
+                return;
+            }
+
+            if (rows7[0].paskey !== req.session.zalogowany.paskey) {
+                res.render('logowanie', {error: 'Hasło zostało zmienione'});
+            } else {
+                const result = JSON.parse(req.body.result);
+
+                db.all(`SELECT * FROM times WHERE quiz_id = ${req.params.quizId} AND user = '${req.session.zalogowany.username}'`,
+                    [], (err3, rows3) => {
+
+                    if(err3) {
+                        res.render('error', {
+                            message: 'Internal server error',
+                            csrfToken: req.csrfToken()
+                        });
+                        return;
+                    }
+
+                    if (rows3[0].stop !== 0) {
+                        res.render('error', {
+                            message: 'Test already solved',
+                            csrfToken: req.csrfToken(),
+                            user: req.session.zalogowany.username
+                        });
+                    } else {
+                        taken = (now - rows3[0].start) / 1000;
+                        db.all(`SELECT q_id, answer, penalty FROM questions WHERE quiz_id = ${req.params.quizId} ORDER BY q_id`,
+                            [], (err2, rows2) => {
+
+                            if (err2 || rows2.length !== result.length) {
+                                res.render('error', {
+                                    message: 'Internal server error',
+                                    csrfToken: req.csrfToken()
+                                });
+                                return;
+                            }
+
+                            const anses:string[] = [];
+                            for (let j = 0; j < result.length; j++) {
+                                if (result[j].questionID !== rows2[j].q_id) {
+                                    res.render('error', {
+                                        message: 'Internal server error',
+                                        csrfToken: req.csrfToken()
+                                    });
+                                    return;
+                                }
+
+                                if (Number(rows2[j].answer) === Number(result[j].answer)) {
+                                    anses.push(
+                                        `INSERT INTO answers VALUES('${req.session.zalogowany.username}',
+                                        ${req.params.quizId}, ${result[j].questionID}, '${result[j].answer}',
+                                        ${result[j].time * taken}, 0)`
+                                    );
+                                } else {
+                                    anses.push(
+                                        `INSERT INTO answers VALUES('${req.session.zalogowany.username}',
+                                        ${req.params.quizId}, ${result[j].questionID}, '${result[j].answer}',
+                                        ${result[j].time * taken}, ${rows2[j].penalty})`
+                                    );
+                                    penalty += rows2[j].penalty;
+                                }
+                            }
+
+                            const mainTrans = async () => {
+                                for (const ans of anses) {
+                                    await run(db)(ans);
+                                }
+                                await run(db)('COMMIT');
+                            }
+
+                            beginUntilPasses(db, mainTrans);
+
+                            // const tryUntil = () => {
+                            //     try {
+                            //         seqSql(db,
+                            //             ['BEGIN EXCLUSIVE TRANSACTION',
+                            //             `UPDATE times SET stop = ${now}`].concat(anses).concat([
+                            //                 `INSERT INTO wholeres VALUES('${req.session.zalogowany.username}', ${req.params.quizId}, ${taken + penalty})`,
+                            //                 'COMMIT'
+                            //             ]), () => {
+                            //                 db.close();
+                            //                 res.render('poquizie', {
+                            //                     csrfToken: req.csrfToken(),
+                            //                     id:req.params.quizId,
+                            //                     user: req.session.zalogowany.username,
+                            //                     result:req.body.result
+                            //                 });
+                            //             })
+                            //     } catch {
+                            //         db.run('ROLLBACK', ()=>{tryUntil()});
+                            //     }
+                            // }
+
+                            // tryUntil();
+                        })
+                    }
+                })
+            }
+        });
+    }
+})
+
+// wejście w statystyki
+app.get('/stats/:quizId/:username', csrfProtection, (req, res) => {
+    if (!req.session.zalogowany?.username) {
+        res.render('logowanie', {error: ''});
+    } else {
+        sqlite3.verbose();
+
+        const db = new sqlite3.Database('baza.db');
+
+        db.all(`SELECT paskey FROM hasla WHERE user = '${req.session.zalogowany.username}'`,
+            [], (err7, rows7) => {
+
+            if (err7) {
+                res.render('error', {
+                    message: 'Internal server error',
+                    csrfToken: req.csrfToken()
+                });
+                return;
+            }
 
             if (rows7[0].paskey !== req.session.zalogowany.paskey) {
                 res.render('logowanie', {error: 'Hasło zostało zmienione'});
@@ -563,14 +695,32 @@ app.get('/stats/:quizId/:username', csrfProtection, (req, res) => {
                 db.all(`SELECT name, backgroundurl FROM quizes WHERE id=${req.params.quizId}`,
                     [], (err8, rows8) => {
 
-                    if (err8) throw err8;
+                    if (err8) {
+                        res.render('error', {
+                            message: 'Internal server error',
+                            csrfToken: req.csrfToken()
+                        });
+                        return;
+                    }
 
-                    if (rows8.length < 1) throw new Error("No such quiz");
+                    if (rows8.length < 1) {
+                        res.render('error', {
+                            message: '404 Not Found',
+                            csrfToken: req.csrfToken()
+                        });
+                        return;
+                    }
 
                     db.all(`SELECT user, wholetime FROM wholeres WHERE quiz_id = ${req.params.quizId} ORDER BY wholetime`,
                         [], (err, rows) => {
 
-                        if (err) throw err;
+                        if (err) {
+                            res.render('error', {
+                                message: 'Internal server error',
+                                csrfToken: req.csrfToken()
+                            });
+                            return;
+                        }
 
                         if (rows.length === 0) {
                             res.render('error', {
@@ -582,17 +732,44 @@ app.get('/stats/:quizId/:username', csrfProtection, (req, res) => {
                             db.all(`SELECT q_id, ans, time, pen FROM answers WHERE quiz_id = ${req.params.quizId} AND user LIKE '${req.params.username}' ORDER BY q_id`,
                                 [], (err2, rows2) => {
 
-                                if (err2) throw err2;
+                                if (err2) {
+                                    res.render('error', {
+                                        message: 'Internal server error',
+                                        csrfToken: req.csrfToken()
+                                    });
+                                    return;
+                                }
+
+                                if (rows2.length === 0) {
+                                    res.render('error', {
+                                        message: '404 Not Found',
+                                        csrfToken: req.csrfToken()
+                                    });
+                                    return;
+                                }
+
 
                                 db.all(`SELECT q_id, text, answer FROM questions WHERE quiz_id = ${req.params.quizId} ORDER BY q_id`,
                                         [], (err3, rows3) => {
 
-                                    if (err3 || rows2.length !== rows3.length) throw err3;
+                                    if (err3 || rows2.length !== rows3.length) {
+                                        res.render('error', {
+                                            message: 'Internal server error',
+                                            csrfToken: req.csrfToken()
+                                        });
+                                        return;
+                                    }
 
                                     db.all(`SELECT q_id, AVG(time) as time FROM answers WHERE quiz_id = ${req.params.quizId} AND pen=0 GROUP BY q_id ORDER BY q_id`,
                                         [], (err4, rows4) => {
 
-                                        if (err4) throw err4;
+                                        if (err4) {
+                                            res.render('error', {
+                                                message: 'Internal server error',
+                                                csrfToken: req.csrfToken()
+                                            });
+                                            return;
+                                        }
 
                                         let i = 0;
                                         while(i < 5 && i < rows.length) {
@@ -654,12 +831,6 @@ app.get('/stats/:quizId/:username', csrfProtection, (req, res) => {
                     })
                 })
             }
-        });
-    } catch {
-        res.render('error', {
-            message: '404 Not Found',
-            csrfToken: req.csrfToken(),
-            user: req.session.zalogowany.username
         });
     }
 });

@@ -1,4 +1,5 @@
 import * as sqlite3 from 'sqlite3';
+import { util } from 'chai';
 // tslint:disable-next-line: no-var-requires
 const sha = require('js-sha3')
 
@@ -120,62 +121,49 @@ const quizcont =
 
 const db = new sqlite3.Database('baza.db');
 
-const seqSql = (dab:sqlite3.Database, comm:string[], next: ()=>void) => {
-    if (comm.length < 1) {
-        throw new Error("Too little args");
-    } else if (comm.length === 1) {
-        dab.run(comm[0], () => {
-            next();
-        })
-    } else {
-        dab.run(comm[0], () => {
-            seqSql(dab, comm.slice(1), next);
-        })
-    }
-};
+import {promisify} from 'util'
+const run = (dab:sqlite3.Database) => promisify(dab.run.bind(dab));
 
-seqSql(
-    db,
-    [
-        'DROP TABLE questions',
-        'DROP TABLE answers',
-        'DROP TABLE hasla',
-        'DROP TABLE quizes',
-        'DROP TABLE times',
-        'DROP TABLE wholeres',
-        'CREATE TABLE questions (quiz_id INTEGER, q_id INTEGER, text TEXT, answer TEXT, penalty INTEGER, image TEXT, PRIMARY KEY(quiz_id, q_id))',
-        'CREATE TABLE answers (user TEXT, quiz_id INTEGER, q_id INTEGER, ans INTEGER, time NUMERIC(9,2), pen NUMERIC(9,2))',
-        'CREATE TABLE hasla (user TEXT PRIMARY KEY, pswd TEXT, paskey TEXT)',
-        'CREATE TABLE times (user VARCHAR(48), quiz_id INTEGER, start BIGINT, stop BIGINT, PRIMARY KEY(user, quiz_id))',
-        'CREATE TABLE quizes (id INTEGER PRIMARY KEY, name VARCHAR(64), description TEXT, backgroundurl TEXT)',
-        'CREATE TABLE wholeres (user VARCHAR(48), quiz_id INTEGER, wholetime BIGINT, PRIMARY KEY(user, quiz_id))',
-        `INSERT INTO hasla VALUES('user1', '${sha.sha3_256('user1')}', '${sha.sha3_256(new Date().toString())}')`,
-        `INSERT INTO hasla VALUES('user2', '${sha.sha3_256('user2')}', '${sha.sha3_256(new Date().toString())}')`,
-        `INSERT INTO quizes VALUES(1, 'Średniowieczny quiz', 'Twoim zadaniem będzie skojarzyć podane wydarzenia historyczne z okresu średniowiecza z latami, w których miały one miejsce. Możesz swobodnie przełączać się między pytaniami, ale na każde pytanie musisz udzielić odpowiedzi. Pamiętaj – musisz to zrobić jak najszybciej, a błędna odpowiedź skutkuje karą czasową!', '../images/header.png')`,
-        `INSERT INTO quizes VALUES(2, 'Łatwy quiz chińskich cyfr', 'Twoim zadaniem będzie zapisać podaną w cyfrach chińskich liczbę za pomocą cyfr arabskich. Możesz swobodnie przełączać się między pytaniami, ale na każde pytanie musisz udzielić odpowiedzi. Pamiętaj – musisz to zrobić jak najszybciej, a błędna odpowiedź skutkuje karą czasową!', '../images2/header.png')`
-    ],
-    ()=>{
+const create = async () => {
+    await run(db)(`DROP TABLE questions`);
+    await run(db)(`DROP TABLE answers`);
+    await run(db)(`DROP TABLE quizes`);
+    await run(db)(`DROP TABLE times`);
+    await run(db)(`DROP TABLE hasla`);
+    await run(db)(`DROP TABLE wholeres`);
+    await run(db)(`CREATE TABLE questions (quiz_id INTEGER, q_id INTEGER, text TEXT, answer TEXT, penalty INTEGER, image TEXT, PRIMARY KEY(quiz_id, q_id))`);
+    await run(db)(`CREATE TABLE answers (user TEXT, quiz_id INTEGER, q_id INTEGER, ans INTEGER, time NUMERIC(9,2), pen NUMERIC(9,2))`);
+    await run(db)(`CREATE TABLE hasla (user TEXT PRIMARY KEY, pswd TEXT, paskey TEXT)`);
+    await run(db)(`CREATE TABLE times (user VARCHAR(48), quiz_id INTEGER, start BIGINT, stop BIGINT, PRIMARY KEY(user, quiz_id))`);
+    await run(db)(`CREATE TABLE quizes (id INTEGER PRIMARY KEY, name VARCHAR(64), description TEXT, backgroundurl TEXT)`);
+    await run(db)(`CREATE TABLE wholeres (user VARCHAR(48), quiz_id INTEGER, wholetime BIGINT, PRIMARY KEY(user, quiz_id))`);
+    await run(db)(`INSERT INTO hasla VALUES('user1', '${sha.sha3_256('user1')}', '${sha.sha3_256(new Date().toString())}')`);
+    await run(db)(`INSERT INTO hasla VALUES('user2', '${sha.sha3_256('user2')}', '${sha.sha3_256(new Date().toString())}')`);
+    await run(db)(`INSERT INTO quizes VALUES(1, 'Średniowieczny quiz', 'Twoim zadaniem będzie skojarzyć podane wydarzenia historyczne z okresu średniowiecza z latami, w których miały one miejsce. Możesz swobodnie przełączać się między pytaniami, ale na każde pytanie musisz udzielić odpowiedzi. Pamiętaj – musisz to zrobić jak najszybciej, a błędna odpowiedź skutkuje karą czasową!', '../images/header.png')`);
+    await run(db)(`INSERT INTO quizes VALUES(2, 'Łatwy quiz chińskich cyfr', 'Twoim zadaniem będzie zapisać podaną w cyfrach chińskich liczbę za pomocą cyfr arabskich. Możesz swobodnie przełączać się między pytaniami, ale na każde pytanie musisz udzielić odpowiedzi. Pamiętaj – musisz to zrobić jak najszybciej, a błędna odpowiedź skutkuje karą czasową!', '../images2/header.png')`);
+    (new Promise((resolve,reject)=>{
+        let i = 0;
+        quizcont.forEach(element => {
+            db.run(`INSERT INTO questions VALUES(1, ${element.id}, '${element.text}', '${element.answer}', ${element.penalty},'${element.image}')`, ()=>{
+                i++;
+                if (i === quizcont.length)
+                    resolve();
+            })
+        })
+    })).then(()=>{
         (new Promise((resolve,reject)=>{
             let i = 0;
-            quizcont.forEach(element => {
-                db.run(`INSERT INTO questions VALUES(1, ${element.id}, '${element.text}', '${element.answer}', ${element.penalty},'${element.image}')`, ()=>{
+            quizcont2.forEach(element => {
+                db.run(`INSERT INTO questions VALUES(2, ${element.id}, '${element.text}', '${element.answer}', ${element.penalty},'${element.image}')`, ()=>{
                     i++;
-                    if (i === quizcont.length)
+                    if (i === quizcont2.length)
                         resolve();
                 })
             })
-        })).then(()=>{
-            (new Promise((resolve,reject)=>{
-                let i = 0;
-                quizcont2.forEach(element => {
-                    db.run(`INSERT INTO questions VALUES(2, ${element.id}, '${element.text}', '${element.answer}', ${element.penalty},'${element.image}')`, ()=>{
-                        i++;
-                        if (i === quizcont2.length)
-                            resolve();
-                    })
-                })
-            })).then(()=>{db.close();
-            }).catch(()=>{db.close(); throw new Error("error")})
+        })).then(()=>{db.close();
         }).catch(()=>{db.close(); throw new Error("error")})
-    }
-)
+    }).catch(()=>{db.close(); throw new Error("error")})
+}
+
+create();
+
