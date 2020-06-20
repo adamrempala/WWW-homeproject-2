@@ -1,0 +1,51 @@
+doctype html
+html(lang="pl")
+    head
+        meta(chartset="UTF-8")
+        meta(name="viewport" content="width=device-width, initial-scale=1.0")
+        title="Quizarre"
+    style
+        include ../public/stylesheets/reset.css
+        include ../public/stylesheets/main.css
+        include ../public/stylesheets/part2.css
+    link(href="https://fonts.googleapis.com/css2?family=MedievalSharp&display=swap" rel="stylesheet")
+
+    body
+        header
+            img(src=backgroundurl alt=title)
+        main
+            a(href="/")="Powrót do głównej"
+            h2="Najlepsza piątka"
+            table
+                tr
+                    th="Użytkownik"
+                    th="Wynik"
+                
+                each kolega in top
+
+                    tr
+                        td
+                            a(href=`../${id}/${kolega.name}`)=kolega.name
+                        td=kolega.score
+            h2="Wynik gracza"
+            table
+                tr
+                    th="ID"
+                    th="Pytanie"
+                    th="Odp."
+                    th="Praw."
+                    th="Czas"
+                    th="Kara"
+                    th="Śr."
+                    
+                each pytanko in stats
+
+                    tr
+                        td=pytanko.id
+                        td=pytanko.text
+                        td=pytanko.userans
+                        td=pytanko.goodans
+                        td=pytanko.time
+                        td=pytanko.penalty
+                        td=pytanko.avgtime
+                        

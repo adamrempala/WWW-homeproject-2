@@ -1,0 +1,63 @@
+doctype html
+html(lang="pl")
+    head
+        meta(chartset="UTF-8")
+        meta(name="viewport" content="width=device-width, initial-scale=1.0")
+        title=title
+        style
+            include ../public/stylesheets/reset.css
+            include ../public/stylesheets/main.css
+        link(href="https://fonts.googleapis.com/css2?family=MedievalSharp&display=swap" rel="stylesheet")
+
+    body
+        header
+            img(src=backgroundurl alt=title)
+
+        main
+            div(id="description")
+                p=description
+            div(id="game")
+                p(id="gamehead")="Pytanie nr 1"
+                p(id ="timer")=`Rozp. ${start}`
+                p(id ="questiontext")
+                p(id ="penaltytext")
+                input(type="button" class="litnavbut" id="cancel" onclick="location.href=\"../..\"" value="Anuluj")
+                input(type="button" class="litnavbut" id="back" value="Wstecz")
+                input(type="button" class="litnavbut" id="forward" value="Dalej")
+                input(type="button" class="litnavbut" id="stop" value="Stop" disabled)
+                input(type="number" id="answer")
+                img(id="image" src='img/1.jpeg' alt='Image of question')
+                div(id="panel")
+            p(style="display:none;", id="JSON")=quiz
+            p(style="display:none;", id="csrf")=csrfToken
+            p(style="display:none;", id="quizno")=id
+            //- div(id="startpage")
+            //-     div(id="start")
+            //-         p="Zaczynam!"
+            //-     div(id="stats")
+            //-         p="Top 5 w tej przeglądarce"
+            //-         table(id="best")
+            //-             tr
+            //-                 th(scope="col")="Miejsce"
+            //-                 th(scope="col")="Nick"
+            //-                 th(scope="col")="Czas"
+            //-         input(type="button" class="bignavbut" value="Resetuj")
+
+        //- p= `Zalogowany jako ${user}`
+        //- a(href='/logout')='Wyloguj'
+
+        //- h2= 'Wybierz quiz'
+
+        //- p()= error
+
+        //- table
+        //-     tr
+        //-         th Nazwa
+        //-         th Treść
+
+        //-     each quiz in quizes
+        //-         td 
+        //-             a(href=`quiz/${quiz.id}`) #{quiz.name}
+        //-         td #{quiz.description}
+        
+        script(src="../javascripts/quiz.js")

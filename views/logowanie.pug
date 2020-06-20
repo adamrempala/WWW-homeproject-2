@@ -1,0 +1,29 @@
+html
+
+    head
+        title= "Zaloguj się"
+        link(href="https://fonts.googleapis.com/css2?family=MedievalSharp&display=swap" rel="stylesheet")
+        style
+            include ../public/stylesheets/reset.css
+            include ../public/stylesheets/main.css
+            include ../public/stylesheets/part2.css
+        
+    body
+
+        h1= 'Quizarre'
+
+        h2= 'Zaloguj się'
+
+        p(id="errors")= error
+        p()= ok
+
+        form(action=`/`, method='POST')
+            input(type='hidden', name='_csrf', value=csrfToken)
+            p
+            | Login: 
+            input(type='text', name='username', value='')
+            p
+            | Hasło: 
+            input(type='password', name='password', value='')
+            
+            button(type='submit' id="submit") Zaloguj

@@ -1,0 +1,36 @@
+html
+
+    head
+
+        title= "Zmień hasło"
+
+    style
+        include ../public/stylesheets/reset.css
+        include ../public/stylesheets/main.css
+        include ../public/stylesheets/part2.css
+
+    body
+
+        h1= 'Quizarre'
+
+        h2= 'Zmień hasło'
+
+        p()= error
+        p()= ok
+
+        form(action=`/chpsw`, method='POST')
+            input(type='hidden', name='_csrf', value=csrfToken)
+            input(type='hidden', name='username', value=nazwa)
+            p
+            | Stare hasło: 
+            input(type='password', name='oldpassword', value='')
+            p
+            | Nowe hasło: 
+            input(type='password', name='newpassword1', value='')
+            p
+            | Nowe hasło raz jeszcze: 
+            input(type='password', name='newpassword2', value='')
+            
+            button(type='submit' id="submit") Zmień
+
+        a(href='/')= 'Powrót do głownej'

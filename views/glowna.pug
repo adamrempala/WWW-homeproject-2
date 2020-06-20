@@ -1,0 +1,50 @@
+doctype html
+html(lang="pl")
+    head
+        meta(chartset="UTF-8")
+        meta(name="viewport" content="width=device-width, initial-scale=1.0")
+        title="Quizarre"
+    style
+        include ../public/stylesheets/reset.css
+        include ../public/stylesheets/main.css
+        include ../public/stylesheets/part2.css
+    link(href="https://fonts.googleapis.com/css2?family=MedievalSharp&display=swap" rel="stylesheet")
+
+    body
+
+        h1= 'Quizarre'
+
+        p= `Zalogowany jako ${user}`
+        a(href='/logout')='Wyloguj'
+        br
+        a(href="/chpsw" id="change")='Zmień hasło'
+
+        h2= 'Wybierz quiz'
+
+        p()= error
+        p()="UWAGA 1. Po kliknięciu quiz rozpocznie się od razu."
+        p()="UWAGA 2. Quiz można rozpocząć i zakończyć tylko raz. Ponowne otwarcie okna nie powoduje wyzerowania czasu."
+
+        table
+            tr
+                th Nazwa
+                th Treść
+
+            each quiz in quizes
+                tr
+                    td 
+                        a(href=`quiz/${quiz.id}` id=`${quiz.id}`) #{quiz.name}
+                    td #{quiz.description}
+
+        h2= 'Zrobione'
+
+        table
+            tr
+                th Nazwa
+                th Treść
+
+            each quiz in done
+                tr
+                    td 
+                        a(href=`stats/${quiz.id}/${user}`) #{quiz.name}
+                    td #{quiz.description}
