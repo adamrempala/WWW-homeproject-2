@@ -155,8 +155,14 @@ loadPage(0); // ładuję pierwsze pytanie
 // reaguję na kilknięcia i zmiany funkcją zapisującą
 answer.addEventListener('input', saveAns);
 
+let onlyOneStop = true;
 // koniec gry
-stopbutton.addEventListener('click', () => {
+stopbutton.addEventListener('click', async () => {
+    if (onlyOneStop === true) {
+        onlyOneStop = false;
+    } else {
+        return;
+    }
     if (isFirst === true) {
         isFirst = false;
     } else {
@@ -178,22 +184,21 @@ stopbutton.addEventListener('click', () => {
         gamelog.sort((a,b)=> {return a.questionID - b.questionID})
     }
 
-    const f = document.createElement("form");
-    f.setAttribute('method',"post");
-    f.setAttribute('action',`./${quizno}/end`);
+    const url = `http://localhost:3000/quiz/${quizno}/end`;
+    // await fetch(url, {
+    //     method: "POST",
+    //     headers: {
+    //         "Content-Type":"application/json",
+    //         "csrf-token": document.querySelector("#csrf").innerHTML
+    //     },
+    //     body: JSON.stringify(gamelog)
+    // });
 
-    const i = document.createElement("input"); // input element, text
-    i.setAttribute('type',"hidden");
-    i.setAttribute('name',"result");
-    i.setAttribute('value',JSON.stringify(gamelog));
+    const Http = new XMLHttpRequest();
+    Http.open("POST", url, false);
+    Http.setRequestHeader("Content-Type", "application/json");
+    Http.setRequestHeader("csrf-token", document.querySelector("#csrf").innerHTML);
+    Http.send(JSON.stringify(gamelog));
 
-    const j = document.createElement("input"); // input element, text
-    j.setAttribute('type',"hidden");
-    j.setAttribute('name',"_csrf");
-    j.setAttribute('value', document.querySelector("#csrf").innerHTML);
-
-    f.appendChild(i);
-    f.appendChild(j);
-    document.querySelector('p[id="JSON"]').appendChild(f);
-    f.submit();
+    document.write(Http.response)
 });

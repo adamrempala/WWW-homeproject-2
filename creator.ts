@@ -125,12 +125,12 @@ import {promisify} from 'util'
 const run = (dab:sqlite3.Database) => promisify(dab.run.bind(dab));
 
 const create = async () => {
-    await run(db)(`DROP TABLE questions`);
-    await run(db)(`DROP TABLE answers`);
-    await run(db)(`DROP TABLE quizes`);
-    await run(db)(`DROP TABLE times`);
-    await run(db)(`DROP TABLE hasla`);
-    await run(db)(`DROP TABLE wholeres`);
+    await run(db)(`DROP TABLE IF EXISTS questions`);
+    await run(db)(`DROP TABLE IF EXISTS answers`);
+    await run(db)(`DROP TABLE IF EXISTS quizes`);
+    await run(db)(`DROP TABLE IF EXISTS times`);
+    await run(db)(`DROP TABLE IF EXISTS hasla`);
+    await run(db)(`DROP TABLE IF EXISTS wholeres`);
     await run(db)(`CREATE TABLE questions (quiz_id INTEGER, q_id INTEGER, text TEXT, answer TEXT, penalty INTEGER, image TEXT, PRIMARY KEY(quiz_id, q_id))`);
     await run(db)(`CREATE TABLE answers (user TEXT, quiz_id INTEGER, q_id INTEGER, ans INTEGER, time NUMERIC(9,2), pen NUMERIC(9,2))`);
     await run(db)(`CREATE TABLE hasla (user TEXT PRIMARY KEY, pswd TEXT, paskey TEXT)`);

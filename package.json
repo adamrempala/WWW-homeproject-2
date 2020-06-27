@@ -7,7 +7,7 @@
   "license": "ISC",
   "main": "index.js",
   "scripts": {
-    "start": "./bin/app",
+    "start": "tsc && cd public && tsc && cd .. && ./bin/app",
     "test": "./test.sh",
     "createdb": "npx ts-node creator"
   },

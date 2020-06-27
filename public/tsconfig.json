@@ -7,15 +7,15 @@
         "noImplicitAny": true,
         "moduleResolution": "node",
         "sourceMap": true,
-        "outDir": "jsserver",
+        "outDir": "javascripts",
         "baseUrl": ".",
         "paths": {
             "*": [
-                "node_modules/*"
+                "../node_modules/*"
             ]
         }
     },
     "include": [
-        "server"
+        "typescripts"
     ]
 }

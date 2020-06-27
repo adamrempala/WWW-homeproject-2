@@ -5,7 +5,7 @@
  */
 
 // tslint:disable-next-line: no-var-requires
-let app = require('../public/javascripts/app');
+let app = require('../jsserver/app');
 // tslint:disable-next-line: no-var-requires
 let debug = require('debug')('zad4:server');
 // tslint:disable-next-line: no-var-requires

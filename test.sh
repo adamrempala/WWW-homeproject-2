@@ -11,6 +11,7 @@ on_kill() { # gdy zabijamy proces
 
 server() {
     export tokil=$! #zapisujemy numer procesu
+    tsc
     npm start
 }
 
